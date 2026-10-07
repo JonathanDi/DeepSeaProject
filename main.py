@@ -230,6 +230,44 @@ class DiagnosticTool:
 
 
 
+
+def draw_dashboard(tool):
+    print("\033[2J\033[H", end="")
+    print("DeepSea CAN Diagnostic Tool")
+    print("---------------------------")
+
+    for module in range(4):
+        reading = tool.telemetry.get(module)
+        if reading is None:
+            print(f"Module {module}: (waiting for telemetry)")
+        else:
+            print(
+                f"Module {module}: {reading['voltage']:.1f}V "
+                f"{reading['current']:.2f}A {reading['temp_c']}C "
+                f"enabled={reading['enabled']} "
+                f"fault={reading['fault']} "
+                f"derated={reading['derated']}"
+            )
+
+    print("---------------------------")
+    print("Identification strings:")
+    for module in range(4):
+        can_id = DIAG_BASE + module
+        text = tool.identifications.get(can_id, "(not yet received)")
+        print(f"  0x{can_id:x}: {text}")
+
+    print("---------------------------")
+    print("Recent faults:")
+    if tool.faults:
+        for fault in tool.faults:
+            print(f"  module {fault['module']}, code {fault['code']}")
+    else:
+        print("  (none)")
+
+    sys.stdout.flush()
+
+
+
 def stop_on_signal(_signum, _frame):
     raise KeyboardInterrupt
 
@@ -247,6 +285,7 @@ def run(interface, grader):
         return 1
 
     last_stats_time = time.monotonic()
+    last_dashboard_time = 0.0
 
     try:
         while True:
@@ -263,6 +302,9 @@ def run(interface, grader):
                     "frames_processed": tool.frames_processed,
                 })
                 last_stats_time = now
+            elif now - last_dashboard_time >= 0.5:
+                draw_dashboard(tool)
+                last_dashboard_time = now
 
     except KeyboardInterrupt:
         pass
